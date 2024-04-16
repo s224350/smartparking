@@ -52,6 +52,7 @@ if(!isset($_SESSION["loggedIn"]) || $_SESSION["loggedIn"] !== true){
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    <!-- PHP code to fetch logs from database -->
                                     <tr>
                                         <td>2023-10-14T22:11:20</td>
                                         <td>Jens</td>
