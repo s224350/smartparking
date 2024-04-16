@@ -1,10 +1,14 @@
+<?php
+session_start();
+?>
+
 <!DOCTYPE html>
 <html data-bs-theme="light">
 
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
-    <title>Contact - EzPark</title>
+    <title>Project Page - EzPark</title>
     <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/css/Alexandria.css">
     <link rel="stylesheet" href="assets/css/Lato.css">
@@ -16,26 +20,31 @@
         <div class="container"><a class="navbar-brand logo" href="#" style="font-family: Alexandria, sans-serif;">EzPark</a><button data-bs-toggle="collapse" class="navbar-toggler" data-bs-target="#navbarNav"><span class="visually-hidden">Toggle navigation</span><span class="navbar-toggler-icon"></span></button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="overview.html">Overview</a></li>
-                    <li class="nav-item"><a class="nav-link" href="registerCars.html">Register Cars</a></li>
-                    <li class="nav-item"><a class="nav-link active" href="login.html">Login</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="overview.php">Overview</a></li>
+                    <?php
+                    if (isset($_SESSION["loggedIn"]) && $_SESSION["loggedIn"] === true) {
+                        echo '<li class="nav-item"><a class="nav-link" href="registerCars.php">Register Cars</a></li>';
+                        echo '<li class="nav-item"><a class="nav-link" href="logs.php">Logs</a></li>';
+                        echo '<li class="nav-item"><a class="nav-link" href="logout.php">Logout</a></li>';
+                    } else {
+                        echo '<li class="nav-item"><a class="nav-link" href="login.php">Login</a></li>';
+                    }
+                    ?>
                 </ul>
             </div>
         </div>
-    </nav>test
-    <main class="page contact-page">
-        <section class="portfolio-block contact">
+    </nav>
+    <main class="page project-page">
+        <section class="portfolio-block project">
             <div class="container">
                 <div class="heading">
-                    <h2>Login</h2>
+                    <h2>Parking overview</h2>
                 </div>
-                <form class="shadow-lg" data-bs-theme="light" style="max-width: 450px;">
-                    <div class="mb-3"><label class="form-label" for="name">Username</label><input class="form-control item" type="text" id="name"></div>
-                    <div class="mb-3"><label class="form-label" for="subject">Password</label><input class="form-control item" type="text" id="subject"></div>
-                    <div class="mb-3"></div>
-                    <div class="mb-3"></div>
-                    <div class="mb-3 mt-4"><button class="btn btn-primary btn-lg d-block w-100" type="submit">Login</button></div>
-                </form>
+                <div class="row">
+                    <div class="col-12 col-sm-12 col-md-12 col-lg-12 col-xl-12 col-xxl-12 align-items-xxl-center info">
+                        <p class="d-xxl-flex justify-content-xxl-center"><img src="assets/img/parkinglot2.png"></p>
+                    </div>
+                </div>
             </div>
         </section>
     </main>

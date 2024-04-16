@@ -1,3 +1,11 @@
+<?php
+session_start();
+if(!isset($_SESSION["loggedIn"]) || $_SESSION["loggedIn"] !== true){
+    header("location: login.php");
+    exit;
+}
+?>
+
 <!DOCTYPE html>
 <html data-bs-theme="light">
 
@@ -16,9 +24,10 @@
         <div class="container"><a class="navbar-brand logo" href="#" style="font-family: Alexandria, sans-serif;">EzPark</a><button data-bs-toggle="collapse" class="navbar-toggler" data-bs-target="#navbarNav"><span class="visually-hidden">Toggle navigation</span><span class="navbar-toggler-icon"></span></button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="overview.html">Overview</a></li>
-                    <li class="nav-item"><a class="nav-link active" href="registerCars.html">Register Cars</a></li>
-                    <li class="nav-item"><a class="nav-link" href="login.html">Login</a></li>
+                    <li class="nav-item"><a class="nav-link" href="overview.php">Overview</a></li>
+                    <li class="nav-item"><a class="nav-link" href="registerCars.php">Register Cars</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="logs.php">Logs</a></li>
+                    <li class="nav-item"><a class="nav-link" href="logout.php">Logout</a></li>
                 </ul>
             </div>
         </div>
@@ -27,7 +36,7 @@
         <section class="portfolio-block project">
             <div class="container">
                 <div class="heading">
-                    <h2>Register cars</h2>
+                    <h2>Logs</h2>
                 </div>
                 <div class="row">
                     <div class="col"></div>
@@ -36,25 +45,34 @@
                             <table class="table">
                                 <thead>
                                     <tr>
-                                        <th>Name</th>
+                                        <th>Timestamp</th>
+                                        <th>Employee</th>
                                         <th>License Plate</th>
                                         <th>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td><input type="text"></td>
-                                        <td><input type="text"></td>
-                                        <td><button class="btn btn-danger" type="button">Remove</button></td>
+                                        <td>2023-10-14T22:11:20</td>
+                                        <td>Jens</td>
+                                        <td>XYZ00</td>
+                                        <td>Left</td>
                                     </tr>
                                     <tr>
-                                        <td><input type="text"></td>
-                                        <td><input type="text"></td>
-                                        <td><button class="btn btn-danger" type="button">Remove</button></td>
+                                        <td>2023-10-14T22:11:20</td>
+                                        <td>Per</td>
+                                        <td>ABC11</td>
+                                        <td>Parked</td>
+                                    </tr>
+                                    <tr>
+                                        <td>2023-10-14T22:11:20</td>
+                                        <td>Unknown</td>
+                                        <td>ABC11</td>
+                                        <td>Invalid license plate</td>
                                     </tr>
                                 </tbody>
                             </table>
-                        </div><button class="btn btn-success" type="button"><span style="color: rgb(255, 255, 255);">Register new car</span></button>
+                        </div>
                     </div>
                     <div class="col"></div>
                 </div>
