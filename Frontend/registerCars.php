@@ -82,6 +82,53 @@ if(!isset($_SESSION["loggedIn"]) || $_SESSION["loggedIn"] !== true){
     <script src="assets/bootstrap/js/bootstrap.min.js"></script>
     <script src="assets/js/pikaday.min.js"></script>
     <script src="assets/js/theme.js"></script>
+
+
+    <script>
+        function registerSampleCar(e){
+            var jsonData ={action:"registerCar"}
+            doAction(jsonData);
+            console.log("Adding new car");
+        }
+
+        function deregisterCar(e){
+            var siblings = e.currentTarget.parentElement.parentElement.children;
+            var id = siblings[0].value;
+            var jsonData ={action:"deregisterCar",id:id}
+            doAction(jsonData);
+            console.log("Removing: " + id);
+        }
+
+        function editRegisteredCar(e){
+            var siblings = e.currentTarget.parentElement.parentElement.children;
+            var id = siblings[0].value;
+            var name = siblings[1].getElementsByTagName("input")[0].value;
+            var plate = siblings[2].getElementsByTagName("input")[0].value;
+            var jsonData ={action:"deregisterCar",id:id,name:name,plate:plate}
+            doAction(jsonData);
+            console.log("Saveing: " + id + " " + name + " " + plate);
+        }
+
+        function doAction(jsonData){
+            fetch("registration.php", {
+                method: "POST",
+                body: JSON.stringify(jsonData),
+                headers: {
+                "Content-type": "application/json; charset=UTF-8"
+                }
+            });
+        }
+
+        document.getElementsByClassName("item-newCar")[0].addEventListener("click", registerSampleCar);
+        var elements = document.getElementsByClassName("item-remove");
+        for (var i = 0; i < elements.length; i++) {
+        elements[i].addEventListener("click", deregisterCar);
+        }
+        var elements = document.getElementsByClassName("item-save");
+        for (var i = 0; i < elements.length; i++) {
+        elements[i].addEventListener("click", editRegisteredCar);
+        }
+    </script>
 </body>
 
 </html>
