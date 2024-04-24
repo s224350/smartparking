@@ -1,36 +1,27 @@
-#include <SoftwareSerial.h>
+#include <HardwareSerial.h>
 
-#define MYPORT_TX 32
-#define MYPORT_RX 33
+#define TXpin 17
+#define RXpin 16
 
-EspSoftwareSerial::UART myPort;
+HardwareSerial MySerial(1);
 
 void setup() {
   
   Serial.begin(115200); //standard hardware serial
-  myPort.begin(115200, SWSERIAL_8N1, MYPORT_RX, MYPORT_TX, false);
+  MySerial.setRxBufferSize(256);
+  MySerial.begin(115200, SERIAL_8N1, RXpin, TXpin);
 
   delay(500);
   Serial.println("Hello world!");
-
-  if (!myPort) { // If the object did not initialize, then its configuration is invalid
-  Serial.println("Invalid EspSoftwareSerial pin configuration, check config"); 
-  while (1) { // Don't continue with invalid configuration
-    delay (1000);
-  }
 } 
 
-
-}
-
 void loop() {
-  
-  if (myPort.available()) {
-    String inc = myPort.readString();
-    Serial.println(inc);
+  if (MySerial.available()) {
+    String inc = MySerial.readStringUntil('\r');
+    Serial.print(inc);
   }
   if (Serial.available()) {
-    String out = Serial.readString();
-    myPort.print(out);
+    String out = Serial.readStringUntil('\r');
+    MySerial.println(out);
   }
 }
