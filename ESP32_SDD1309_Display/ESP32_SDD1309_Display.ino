@@ -10,7 +10,9 @@
 // SDA     -> D21
 // RES     -> Rx2/GPIO16
 
-U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ 16);
+U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/16);
+
+unsigned long blinkStartTime = 0; // Timestamp when the blinking starts
 
 void setup(void) {
   u8g2.begin();
@@ -18,35 +20,56 @@ void setup(void) {
 }
 
 void loop(void) {
-  drawParkingSpots();
-  delay(1000);
+  static int selectedSpot = 0;
+  if (Serial.available()) {
+    int input = Serial.parseInt();
+    if (input >= 1 && input <= 4) {
+      selectedSpot = input;
+      blinkStartTime = millis(); // Start the blink timer
+    }
+  }
+  drawParkingSpots(selectedSpot, blinkStartTime);
+  delay(100); // Delay adjusted for faster loop execution, hence faster blinking
 }
 
-void drawParkingSpots() {
-  u8g2.clearBuffer(); // Clear the buffer
+void drawParkingSpots(int selectedSpot, unsigned long startTime) {
+  u8g2.clearBuffer();  // Clear the buffer
 
   int displayWidth = u8g2.getDisplayWidth();
-  int topRoad = u8g2.getDisplayHeight() / 2; // Base line in the middle of the display
-  int buttRoad = u8g2.getDisplayHeight() - 3; // Bottom of the display, adjusted by -3
-  int spotWidth = displayWidth / 4; 
-  int spotHeight = 25; 
-  int lineWidth = 3;
-  int gapWidth = 5; // Gap between lines to create the dotted effect
+  int topRoad = u8g2.getDisplayHeight() / 2;
+  int buttRoad = u8g2.getDisplayHeight() - 3;
+  int spotWidth = displayWidth / 4;
+  int spotHeight = 25;
+  int textOffsetX = (spotWidth / 4) - 3; // X offset from the beginning of each parking spot
+  int textOffsetY = (spotHeight / 2) - 5; // Y offset from the top of the parking spot
 
   // Draw the roads
-  u8g2.drawLine(0, topRoad, displayWidth-3, topRoad);//-3 cause skærm
-  u8g2.drawLine(0, buttRoad, displayWidth-3, buttRoad);
+  u8g2.drawLine(0, topRoad, displayWidth - 3, topRoad);
+  u8g2.drawLine(0, buttRoad, displayWidth - 3, buttRoad);
 
   // Draw the dotted line
-  for (int x = 0; x < displayWidth; x += (lineWidth + gapWidth)) {
-    u8g2.drawLine(x, topRoad + ((buttRoad - topRoad) / 2), x + lineWidth, topRoad + ((buttRoad - topRoad) / 2));
+  for (int x = 0; x < displayWidth; x += (3 + 5)) {
+    u8g2.drawLine(x, topRoad + ((buttRoad - topRoad) / 2), x + 3, topRoad + ((buttRoad - topRoad) / 2));
   }
 
-  // Draw the parking spots
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+
+  // Draw the parking spots and handle the blinking
   for (int i = 0; i < 4; i++) {
-    int x = i * spotWidth + (spotWidth / 4); // Adding offset for gap
-    u8g2.drawBox(x, 0, (spotWidth - (2 * (spotWidth / 4))), spotHeight);
+    char spotLabel[3];
+    sprintf(spotLabel, "%d", i+1);
+
+    int x = i * spotWidth + (spotWidth / 4);
+    u8g2.drawFrame(x, topRoad - spotHeight + 1, spotWidth - (2 * (spotWidth / 4)), spotHeight);
+    u8g2.drawStr(x + textOffsetX, topRoad - textOffsetY, spotLabel); // Text is placed in the original position
+
+    if (i + 1 == selectedSpot && (millis() - startTime) < 3000) {
+      if ((millis() / 100) % 2 == 0) { // faster blink
+        u8g2.setDrawColor(0); // Make black
+        u8g2.drawBox(x, topRoad - spotHeight + 1, spotWidth - (2 * (spotWidth / 4)), spotHeight);
+        u8g2.setDrawColor(1);
+      }
+    }
   }
-  
-  u8g2.sendBuffer(); 
+  u8g2.sendBuffer();
 }
