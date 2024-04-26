@@ -21,15 +21,15 @@ void loop() {
     USBSerial.print(inc);
   }
 
-  if (CamSerial.available()) {
-    String inc = CamSerial.readStringUntil('\r');
-    if (inc.equals("SEND")){
-      USBSerial.println("Received SEND from Cam");
-      fromCamToLTE();
-    } else {
-      USBSerial.println("Received unknown command from Cam");
-    }
-  }
+  // if (CamSerial.available()) {
+  //   String inc = CamSerial.readStringUntil('\r');
+  //   if (inc.equals("SEND")) {
+  //     USBSerial.println("Received SEND from Cam");
+  //     fromCamToLTE();
+  //   } else {
+  //     USBSerial.println("Received unknown command from Cam");
+  //   }
+  // }
 
   if (USBSerial.available()) {
     String out = Serial.readStringUntil('\r');
@@ -42,7 +42,10 @@ void loop() {
       transferTestPictureToLTE();
     } else if (out.equals("FLUSHALL")) {
       flushall();
-    } else { //otherwise send the command directly to the LTE module
+    } else if (out.equals("GETPIC")) {
+      requestPicture();
+    }
+    else { //otherwise send the command directly to the LTE module
       LTESerial.println(out);
     }
   }
@@ -78,6 +81,62 @@ void setupHTTP() {
   send("AT+UHTTP=1,6,0\r");
 }
 
+void requestPicture() {
+  // tells the ESP Cam to take a picture and transmit it over UART. 
+  CamSerial.write(98);
+  delay(200);
+  byte buf[4];
+  CamSerial.readBytes(buf, 4);
+  long bytecount = 0;
+  
+  bytecount += ((long)buf[3]) << 24;
+  bytecount += ((long)buf[2]) << 16;
+  bytecount += ((long)buf[1]) << 8;
+  bytecount += ((long)buf[0]);
+
+  USBSerial.println("Received bytes:");
+  for (int i = 0; i < 4; i++) {
+    USBSerial.print(buf[i], HEX);
+    USBSerial.print(", ");
+  }
+  
+  send("AT+UDWNFILE=\"picture\","+(String)bytecount+"\r");
+  delay(1000);
+  byte incomingbyte;
+  CamSerial.write(99);
+  while (CamSerial.available() == 0) {} //wait for data to be available
+  int counter = 0;
+  while (bytecount > 0) {
+    if (!CamSerial.available()) {
+      continue;
+    }
+    incomingbyte = CamSerial.read(); 
+    //USBSerial.println("read one byte");
+    LTESerial.write(incomingbyte);
+    //USBSerial.println("wrote one byte");
+    bytecount--;
+  }
+  USBSerial.println("WHILE DONE");
+
+  // while (bytecount > 0) {
+  //   if (bytecount >= 1000) {
+  //     USBSerial.println("Sending 1000 bytes to LTE");
+  //     //LTESerial.flush();
+  //     LTESerial.write(buf, 1000);
+  //     //LTESerial.flush();
+  //     bytecount = bytecount - 1000;
+
+  //   } else {
+  //     USBSerial.println("Sending "+(String)bytecount+" bytes to LTE");
+  //     CamSerial.readBytes(buf, bytecount);
+  //     //LTESerial.flush();
+  //     LTESerial.write(buf, bytecount);
+  //     //LTESerial.flush();
+  //     bytecount = 0;
+  //   }
+  // }
+}
+
 void transferTestPictureToLTE() {
   send("AT+UDWNFILE=\"picture\",155\r");
   delay(200);
@@ -86,47 +145,37 @@ void transferTestPictureToLTE() {
   LTESerial.flush();
 }
 
-void fromCamToLTE() {
-  String inc = CamSerial.readStringUntil('\r');
-  int bytecount = inc.toInt();
-  byte buf[64];
-  send("AT+UDWNFILE=\"picture\","+(String)bytecount+"\r");
-  delay(200);
-  while (bytecount > 0) {
-    if (bytecount >= 64) {
-      USBSerial.println("Sending 64 bytes to LTE");
-      CamSerial.readBytes(buf, 64);
-      LTESerial.flush();
-      LTESerial.write(buf, 64);
-      LTESerial.flush();
-      bytecount = bytecount - 64;
-    } else {
-      USBSerial.println("Sending "+(String)bytecount+" bytes to LTE");
-      CamSerial.readBytes(buf, bytecount);
-      LTESerial.flush();
-      LTESerial.write(buf, bytecount);
-      LTESerial.flush();
-      bytecount = 0;
-    }
-  }
-  while (LTESerial.available() == 0) {} // wait for response
-  String response = LTESerial.readStringUntil('\r');
+// void fromCamToLTE() {
+//   String inc = CamSerial.readStringUntil('\r');
+//   int bytecount = inc.toInt();
+  
+//   while (LTESerial.available() == 0) {} // wait for response
+//   String response = LTESerial.readStringUntil('\r');
+//   USBSerial.println(response);
 
-  // picture should now be in the LTE module's memory
-  // try to send it to server:
-  send("AT+UHTTPC=1,4,\"/upload\",\"myresponse\",\"picture\",3");
-}
+//   // picture should now be in the LTE module's memory
+//   // try to send it to server:
+//   send("AT+UHTTPC=1,4,\"/upload\",\"myresponse\",\"picture\",3");
+// }
 void send(String message) {
   LTESerial.print(message);
-  delay(50);
+  delay(60);
   while (LTESerial.available()) {
     String out = LTESerial.readStringUntil('\r');
     USBSerial.println(out);
   }
 }
 
-void flushall() {
+String readfile(String filename) {
+  // LTE module returns the file in the format:
+  // +URDFILE: "filename",[filesize],"Actual contents of the file represented as ASCII"
+  LTESerial.print("AT+URDFILE=\""+filename+"\"\r");
+}
+
+void flushall() { // maybe necessary 
   LTESerial.flush();
   USBSerial.flush();
   CamSerial.flush();
 }
+
+
