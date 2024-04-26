@@ -22,6 +22,7 @@ function findID($input, $records, $pdo) {
             return $row['UID'];
         }
     }
+    return 'Error: No authorization';
 }
 
 function freeParkingSpots($pdo) {
@@ -39,6 +40,9 @@ $output = 'DK12345';
 #Test over 
 $id = findID($output, $records, $pdo);
 echo "ID of the arrived person: $id<br>";
-$freeSpots = freeParkingSpots($pdo);
-echo "Free parking spots: " . implode(', ', $freeSpots);
+if ($id =='Error: No authorization'){
+}else{
+    $freeSpots = freeParkingSpots($pdo);
+    echo "Free parking spots: " . implode(', ', $freeSpots);
+}
 ?>
