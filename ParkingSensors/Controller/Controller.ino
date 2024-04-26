@@ -6,7 +6,7 @@
 //Rx - Tx
 //Tx - Rx
 
-// LoRa konf
+// LoRa konfiguration
 HardwareSerial loraSerial(1);
 #define RxPin 16
 #define TxPin 17
@@ -41,8 +41,8 @@ void setup() {
   runLoRaCommand("radio set wdt 60000");  //disable for continuous reception
   runLoRaCommand("radio set sync 12");
   runLoRaCommand("radio set bw 250");
-  Serial.println("starting loop");
   runLoRaCommand("radio rx 0");
+  Serial.println("starting loop");
 }
 
 
