@@ -17,7 +17,8 @@ String str;
 
 void setup() {
   Serial.begin(57600);
-
+  pinMode(23,OUTPUT);
+  pinMode(23,LOW);
   //LoRa setup
   loraSerial.setRxBufferSize(SER_BUF_SIZE);
   loraSerial.begin(BAUDRATE, SERIAL_8N1, RxPin, TxPin);
@@ -47,7 +48,8 @@ void setup() {
 
 
 void loop() {
-
+  Serial.println("looping");
+  delay(1000);
  //tjekker efter besked og handler herefter
   if (loraSerial.available()) {
     processMessage(readLoRaMessage());
