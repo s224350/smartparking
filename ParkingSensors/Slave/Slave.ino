@@ -31,7 +31,6 @@ const int echoPin = 18;
 
 
 float detectionDistance = 10.0;
-int newState = false;
 int prevState = false;
 
 
@@ -88,9 +87,8 @@ Serial.begin(115200);
 
 void loop() {
 
-  bool newStatus = isCarParked();
-
-  Serial.println("Loop");
+  Serial.println(".");
+  bool newState = isCarParked();
 
   if (newState != prevState) {
     Serial.println("State changed");
@@ -100,7 +98,7 @@ void loop() {
   }
 
   if (!messageAcknowledged){
-    Serial.println("Sending message");
+    Serial.println("Transmitting message");
     runLoRaCommand("radio rxstop");
     transmitMessage(packetToSend);
     runLoRaCommand("radio rx 0"); 
@@ -108,11 +106,21 @@ void loop() {
   }
 
   if(loraSerial.available()){
-    Serial.println("Recevied Data");
+    Serial.print("Recevied Data:");
     String message = readLoRaMessage();
-    if (message.length() == 4){
+    Serial.print(message);
+    if (message.length() == 14){
       message = message.substring(10);
-      if(String(msgAck,16).equals(message)){
+
+      char buffer[message.length()+1];
+      message.toCharArray(buffer, message.length()+1);
+      int messageValue = strtol(buffer, NULL, 16);
+
+      Serial.print("msgAck:");
+      Serial.println(msgAck,DEC);
+      Serial.print("Message:");
+      Serial.println(messageValue,DEC);
+      if(msgAck == messageValue){
         Serial.println("ACK confirmed");
         messageAcknowledged = true;
       }
@@ -135,13 +143,10 @@ float measureDistance() {
   digitalWrite(trigPin, LOW);
   long duration = pulseIn(echoPin, HIGH);
   float distanceCm = duration * SOUND_SPEED / 2;
-  Serial.print("Distance mesasured to: ");
-  Serial.println(distanceCm);
   return distanceCm;
 }
 
 bool isCarParked(){
-  Serial.println(measureDistance() < detectionDistance);
   return measureDistance() < detectionDistance;
 }
 
