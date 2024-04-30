@@ -3,7 +3,7 @@
 #define LTEbaudrate 115200 // can autobaud 9600, 19200, 38400, 57600, 115200, 230400, 460800, and 921600
                            // but it seems Arduino Due can't do more than 115200
 #define USBSerial Serial
-#define LTESerial Serial1
+#define LTESerial Serial3
 #define CamSerial Serial2
 
 byte testPicture[155] = {0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0x00,0x00,0x00,0x0d,0x49,0x48,0x44,0x52,0x00,0x00,0x00,0x08,0x00,0x00,0x00,0x08,0x02,0x03,0x00,0x00,0x00,0xb9,0x61,0x56,0x18,0x00,0x00,0x00,0x01,0x73,0x52,0x47,0x42,0x00,0xae,0xce,0x1c,0xe9,0x00,0x00,0x00,0x04,0x67,0x41,0x4d,0x41,0x00,0x00,0xb1,0x8f,0x0b,0xfc,0x61,0x05,0x00,0x00,0x00,0x09,0x50,0x4c,0x54,0x45,0xff,0xff,0xff,0x00,0x94,0xff,0x00,0x00,0x00,0x84,0xd2,0x2e,0x7c,0x00,0x00,0x00,0x09,0x70,0x48,0x59,0x73,0x00,0x00,0x0e,0xc3,0x00,0x00,0x0e,0xc3,0x01,0xc7,0x6f,0xa8,0x64,0x00,0x00,0x00,0x1b,0x49,0x44,0x41,0x54,0x18,0xd3,0x63,0x60,0x0c,0x65,0xe0,0x48,0x05,0x21,0x06,0x51,0x10,0x52,0x88,0x64,0xd0,0x5a,0xc9,0xc0,0x18,0x0a,0x00,0x1f,0x93,0x02,0xfd,0xf5,0x73,0xed,0xbe,0x00,0x00,0x00,0x00,0x49,0x45,0x4e,0x44,0xae,0x42,0x60,0x82};
@@ -31,17 +31,19 @@ void loop() {
       setupRadio2(); // LTE settings on the LTE module
     } else if (out.equals("SETUPHTTP")) {
       setupHTTP(); // HTTP settings to interface with the backend server
-    } else if (out.equals("TRANSFERTEST")) {
-      transferTestPictureToLTE(); // transfer a test picture to the LTE module
     } else if (out.equals("FLUSHALL")) {
-      flushall(); 
+      flushall();
     } else if (out.equals("GETPIC")) {
       requestPicture(); // make the camera take a picture and transfer it to the LTE module
     } else if (out.equals("RESETSERIAL")) {
-      resetSerial(); 
+      resetSerial();
+    } else if (out.equals("GETTEST")) {
+      getAndReadTest();
     } else if (out.startsWith("BYTES ")) {
       getBytes(out);
-    } else { 
+    } else if (out.startsWith("READTEST ")) {
+      readTest(out);
+    } else {
       LTESerial.println(out); //otherwise send the command directly to the LTE module
     }
   }
@@ -84,6 +86,7 @@ void setupHTTP() {
 void requestPicture() {
   // tells the ESP Cam to take a picture and transmit it over UART. 
   CamSerial.write(98); // one pre-agreed byte that means "take picture and send it"
+  USBSerial.println("Waiting for CamSerial...");
   while (CamSerial.available() == 0) {} // wait for a response
   byte buf[4]; // the camera will first send 4 bytes informing of the size of the picture
   CamSerial.readBytes(buf, 4);
@@ -120,10 +123,8 @@ void requestPicture() {
   }
 }
 
-void transferTestPictureToLTE() { 
-  send("AT+UDWNFILE=\"picture\",155\r"); // a little 8x8 png of a smiley face just to test things with
-  delay(200);
-  LTESerial.write(testPicture,155);
+void sendPicture() { 
+  LTESerial.print("AT+UHTTPC=1,4,\"/DUE/upload\",\"uploadresponse\",\"picture\",3\r");
 }
 
 void getBytes(String message) {
@@ -152,13 +153,47 @@ void send(String message) {
   }
 }
 
-String readfile(String filename) {
-  // LTE module returns the file in the format:
-  // +URDFILE: "filename",[filesize],"Actual contents of the file represented as ASCII"
-  LTESerial.print("AT+URDFILE=\""+filename+"\"\r");
+void getAndReadTest() {
+  LTESerial.print("AT+UHTTPC=1,1,\"/DUE/hello\",\"getresponse\"\r");
+  delay(100);
+  String response = readfile("getresponse");
+  USBSerial.print("File read: ");
+  USBSerial.println(response);
 }
 
-void resetSerial() {
+void readTest(String command) {
+  command = command.substring(9); // cut off the first 5 characters of message (which will be "READTEST ")
+  USBSerial.println("Trying to read file \""+command+"\"");
+  String filecontents = readfile(command);
+  USBSerial.print("File read: ");
+  USBSerial.println(filecontents);
+}
+
+void getStateFromServer() {
+  LTESerial.print("AT+UHTTPC=1,1,\"/DUE/state\",\"getresponse\"\r");
+  delay(100);
+}
+
+String readfile(String filename) {
+  // function that reads a text file stored on the LTE module, returning it as string.
+  // LTE module returns the file in the format:
+  // +URDFILE: "filename",[filesize],"Actual contents of the file"\r\nOK\r\n
+  byte buf[100];
+  LTESerial.print("AT+URDFILE=\""+filename+"\"\r");
+  delay(50);
+  LTESerial.readBytesUntil('\n',buf,100); // removes the command echo from buffer
+  for (int i = 0; i < filename.length()+13; i++) {
+    LTESerial.read(); // removes the first part from buffer: +URDFILE: "filename",
+  }
+  LTESerial.readBytesUntil('\"',buf,100); // removes the next part including the file size
+  // now the only remaining part are the actual file contents
+
+  String output = LTESerial.readString();
+  output = output.substring(0, output.length()-7); // cuts off the last quotation mark and the OK
+  return output;
+}
+
+void resetSerial() { // possibly helpful
   USBSerial.println("Attempting to reset Serials...");
   LTESerial.end();
   USBSerial.end();
@@ -169,7 +204,7 @@ void resetSerial() {
   USBSerial.println("Serials rebooted.");
 }
 
-void flushall() { // maybe necessary 
+void flushall() { // possibly helpful
   USBSerial.println("Flushing all Serials");
   LTESerial.flush();
   USBSerial.flush();
