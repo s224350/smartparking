@@ -41,7 +41,7 @@ bool messageAcknowledged  = true;
 
 int sleepTime = 2000;
 
-int spotID = 1;
+int spotID = 0;
 byte applicationID = 0xef;
 int msgAvailable = (applicationID << 8) | (spotID << 1 | 0);
 int msgOccupied = (applicationID << 8) | (spotID << 1 | 1);
@@ -54,6 +54,7 @@ void setup() {
  pinMode(echoPin, INPUT);
 
 Serial.begin(115200);
+Serial.println("hello");
 
   //LoRa setup
   loraSerial.setRxBufferSize(SER_BUF_SIZE);
