@@ -12,7 +12,7 @@ if(!isset($_SESSION["loggedIn"]) || $_SESSION["loggedIn"] !== true){
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
-    <title>Project Page - EzPark</title>
+    <title>Logs - EzPark</title>
     <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/css/Alexandria.css">
     <link rel="stylesheet" href="assets/css/Lato.css">
@@ -25,7 +25,7 @@ if(!isset($_SESSION["loggedIn"]) || $_SESSION["loggedIn"] !== true){
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item"><a class="nav-link" href="overview.php">Overview</a></li>
-                    <li class="nav-item"><a class="nav-link" href="registerCars.php">Register Cars</a></li>
+                    <li class="nav-item"><a class="nav-link" href="parkingPermits.php">Parking Permits</a></li>
                     <li class="nav-item"><a class="nav-link active" href="logs.php">Logs</a></li>
                     <li class="nav-item"><a class="nav-link" href="logout.php">Logout</a></li>
                 </ul>
