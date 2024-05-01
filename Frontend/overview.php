@@ -8,7 +8,7 @@ session_start();
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
-    <title>Project Page - EzPark</title>
+    <title>Overview - EzPark</title>
     <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/css/Alexandria.css">
     <link rel="stylesheet" href="assets/css/Lato.css">
@@ -23,7 +23,7 @@ session_start();
                     <li class="nav-item"><a class="nav-link active" href="overview.php">Overview</a></li>
                     <?php
                     if (isset($_SESSION["loggedIn"]) && $_SESSION["loggedIn"] === true) {
-                        echo '<li class="nav-item"><a class="nav-link" href="registerCars.php">Register Cars</a></li>';
+                        echo '<li class="nav-item"><a class="nav-link" href="parkingPermits.php">Parking Permits</a></li>';
                         echo '<li class="nav-item"><a class="nav-link" href="logs.php">Logs</a></li>';
                         echo '<li class="nav-item"><a class="nav-link" href="logout.php">Logout</a></li>';
                     } else {
@@ -45,9 +45,9 @@ session_start();
 
         const spaceWidth = 100;
         const spaceHeight = 200;
-        const parkingSpacesCount = 4;
+        const parkingSpacesCount = 2;
         const startX = -(parkingSpacesCount/2)*spaceWidth;
-        const startY = -spaceHeight;
+        const startY = 0;
 
         const carsImg = [new Image(),new Image(),new Image()];
         const cars = [];
@@ -95,33 +95,16 @@ session_start();
             carsImg[1].src = "./assets/img/Car2.png";
             carsImg[2].src = "./assets/img/Car3.png";
             
-            parkingSpaces.push(new parkingSpace(0,-150,-100,false)); 
-            parkingSpaces.push(new parkingSpace(1,-50,-100,false)); 
-            parkingSpaces.push(new parkingSpace(2,50,-100,false)); 
-            parkingSpaces.push(new parkingSpace(3,150,-100,false)); 
+            parkingSpaces.push(new parkingSpace(1,-spaceWidth/2,-spaceHeight/2,false)); 
+            parkingSpaces.push(new parkingSpace(2,spaceWidth/2,-spaceHeight/2,false)); 
+            parkingSpaces.push(new parkingSpace(3,spaceWidth/2,spaceHeight/2,false)); 
+            parkingSpaces.push(new parkingSpace(4,-spaceWidth/2,spaceHeight/2,false)); 
 
             window.requestAnimationFrame(draw);
         }
 
         function draw() {
             const ctx = document.getElementById("canvas").getContext("2d");
-
-
-
-            /*for (var i=0;i<cars.length;i++){
-                if (cars[i].state == "parking"){
-                    parkingSpot = getParkingSpot(cars[i].parkingSpotID);
-                    console.log(cars[i].x);
-                    if (cars[i].x < parkingSpot.x){
-                        cars[i].x++;
-                    } else if (cars[i].rot > 0){
-                        cars[i].rot -= 1;
-                    } else if (cars[i].y > parkingSpot.y){
-                        cars[i].y--;
-                    }
-                }
-            }*/
-
 
 
             drawParkingLot(ctx);
@@ -141,7 +124,7 @@ session_start();
 
             //Draw vertical line
             for (let i = 0; i < parkingSpacesCount+1; i++) {
-                ctx.moveTo(startX+i*spaceWidth, startY);
+                ctx.moveTo(startX+i*spaceWidth, startY-spaceHeight);
                 ctx.lineTo(startX+i*spaceWidth, startY+spaceHeight);
             }
             ctx.stroke();
@@ -168,7 +151,7 @@ session_start();
             for (var i=0;i<cars.length;i++){
                 if (cars[i].state != "empty"){
                     drawCar(ctx,cars[i].type,cars[i].x,cars[i].y,0);
-                    console.log("Drawing car:"+cars[i].x+","+cars[i].y+",0")
+                    //console.log("Drawing car:"+cars[i].x+","+cars[i].y+",0")
                 }
             }
         }
@@ -182,12 +165,40 @@ session_start();
         }
 
         init();
-
-
-
-
 </script>
 
+
+<script>
+
+var parkingState = {};
+let socket = null;
+
+function connectToSocket() {
+    socket = new WebSocket('wss://' + location.host + '/WS/socket');
+    socket.addEventListener("close", connectToSocket);
+    socket.addEventListener('message', ev => {
+        if (ev.data == "pong") return;
+        console.log(ev.data);
+        parkingState = JSON.parse(ev.data)
+        for (var i=0;i<parkingState.length;i++){
+            if (parkingState[i].occupied == true){
+                addCar(parkingState[i].id,1);
+            } else {
+                removeCar(parkingState[i].id);
+            }
+        }
+    });
+    ping();
+}
+function ping() {
+    setTimeout(ping, 5000);
+    if (!socket) return;
+    if (socket.readyState !== 1) return;
+    socket.send("ping");
+    console.log("Sent ping")
+}
+connectToSocket();
+</script>
 
 </body>
 
