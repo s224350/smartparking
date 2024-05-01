@@ -4,6 +4,8 @@
 #define LTESerial Serial3
 #define CamSerial Serial2
 
+int state[4] = {0,0,0,0};
+
 void setup() {
   USBSerial.begin(115200); // Serial0 communicating with PC over USB
   LTESerial.begin(LTEbaudrate); // Serial1 communicating with LTE module over UART
@@ -133,7 +135,7 @@ void requestPicture() {
   }
 }
 
-int getPicAndUpload() {
+String getPicAndUpload() {
   // called by one ultrasonic sensor when a car approaches the gate
   send("AT+UDELFILE=\"picture\"\r"); // delete the existing picture
   requestPicture();
@@ -200,7 +202,9 @@ void spotUpdate(byte input) {
   String newstate = getHTTPContent(readFile("updateresponse"));
   USBSerial.println("Got newstate: "+newstate);
   
-  // TODO: send newstate to display.
+  for (int i = 0; i < 4; i++) {
+    state[i] = (int) (newstate[i]-48); // convert from char to int, '0' is 48.
+  }
 } 
 
 void carLeft() {
