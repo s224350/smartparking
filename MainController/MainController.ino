@@ -1,12 +1,8 @@
-//#include <HardwareSerial.h>
-
 #define LTEbaudrate 115200 // can autobaud 9600, 19200, 38400, 57600, 115200, 230400, 460800, and 921600
                            // but it seems Arduino Due can't do more than 115200
 #define USBSerial Serial
 #define LTESerial Serial3
 #define CamSerial Serial2
-
-byte testPicture[155] = {0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0x00,0x00,0x00,0x0d,0x49,0x48,0x44,0x52,0x00,0x00,0x00,0x08,0x00,0x00,0x00,0x08,0x02,0x03,0x00,0x00,0x00,0xb9,0x61,0x56,0x18,0x00,0x00,0x00,0x01,0x73,0x52,0x47,0x42,0x00,0xae,0xce,0x1c,0xe9,0x00,0x00,0x00,0x04,0x67,0x41,0x4d,0x41,0x00,0x00,0xb1,0x8f,0x0b,0xfc,0x61,0x05,0x00,0x00,0x00,0x09,0x50,0x4c,0x54,0x45,0xff,0xff,0xff,0x00,0x94,0xff,0x00,0x00,0x00,0x84,0xd2,0x2e,0x7c,0x00,0x00,0x00,0x09,0x70,0x48,0x59,0x73,0x00,0x00,0x0e,0xc3,0x00,0x00,0x0e,0xc3,0x01,0xc7,0x6f,0xa8,0x64,0x00,0x00,0x00,0x1b,0x49,0x44,0x41,0x54,0x18,0xd3,0x63,0x60,0x0c,0x65,0xe0,0x48,0x05,0x21,0x06,0x51,0x10,0x52,0x88,0x64,0xd0,0x5a,0xc9,0xc0,0x18,0x0a,0x00,0x1f,0x93,0x02,0xfd,0xf5,0x73,0xed,0xbe,0x00,0x00,0x00,0x00,0x49,0x45,0x4e,0x44,0xae,0x42,0x60,0x82};
 
 void setup() {
   USBSerial.begin(115200); // Serial0 communicating with PC over USB
@@ -32,19 +28,21 @@ void loop() {
     } else if (out.equals("SETUPHTTP")) {
       setupHTTP(); // HTTP settings to interface with the backend server
     } else if (out.equals("FLUSHALL")) {
-      flushall();
+      flushall(); // flush all the Serials. Not used for anything, I just thought it might help (it didn't)
+    } else if (out.equals("RESETSERIAL")) {
+      resetSerial(); // end USBSerial and LTESerial, then begin them again. Also didn't help.
     } else if (out.equals("GETPIC")) {
       requestPicture(); // make the camera take a picture and transfer it to the LTE module
-    } else if (out.equals("RESETSERIAL")) {
-      resetSerial();
     } else if (out.equals("CARLEFTTEST")) {
-      carLeft();
+      carLeft(); // test sending the carLeft message to the server
     } else if (out.startsWith("SPOTUPDATETEST ")) {
-      spotUpdateTest(out);
+      spotUpdateTest(out); // test sending a spotupdate byte to the server
     } else if (out.startsWith("BYTES ")) {
-      getBytes(out);
+      getBytes(out); // send a command to the LTE module, but get the answer printed as hex bytes instead of a String.
     } else if (out.startsWith("READTEST ")) {
-      readTest(out);
+      readTest(out); // test the readFile() function
+    } else if (out.startsWith("HTTPREAD ")) {
+      HTTPReadTest(out); // test the getHTTPContent() function
     } else {
       LTESerial.println(out); //otherwise send the command directly to the LTE module
     }
@@ -84,19 +82,19 @@ void setupRadio2() {
 }
 
 void setupHTTP() {
-  send("AT+UHTTP=1,0,\"20.52.253.18\"\r");
+  send("AT+UHTTP=1,0,\"20.52.253.18\"\r"); // define HTTP profile 1 to send to 20.52.253.18
   delay(100);
-  send("AT+UHTTP=1,4,0\r");
+  send("AT+UHTTP=1,4,0\r"); // set profile 1 to use authentication type 0 (no authentication)
   delay(100);
-  send("AT+UHTTP=1,5,80\r");
+  send("AT+UHTTP=1,5,80\r"); // set profile 1 to send on port 80
   delay(100);
-  send("AT+USECPRF=0,0,0\r");
+  send("AT+USECPRF=0,0,0\r"); // set security config profile 0 to not use certificate validation
   delay(100);
-  send("AT+UHTTP=1,6,1,0\r");
+  send("AT+UHTTP=1,6,1,0\r"); // set HTTP profile 1 to use TLS with security config 0
 }
 
 void requestPicture() {
-  // tells the ESP Cam to take a picture and transmit it over UART. 
+  // tells the ESP Cam to take a picture and transmit it over UART, to be saved on the LTE module memory
   CamSerial.write(98); // one pre-agreed byte that means "take picture and send it"
   USBSerial.println("Waiting for CamSerial...");
   while (CamSerial.available() == 0) {} // wait for a response
@@ -135,27 +133,14 @@ void requestPicture() {
   }
 }
 
-void getPicAndUpload() {
-  // called by 
-  LTESerial.print("AT+UHTTPC=1,4,\"/DUE/upload\",\"uploadresponse\",\"picture\",3\r");
-}
+int getPicAndUpload() {
+  // called by one ultrasonic sensor when a car approaches the gate
+  send("AT+UDELFILE=\"picture\"\r"); // delete the existing picture
+  requestPicture();
+  LTESerial.print("AT+UHTTPC=1,4,\"/DUE/upload\",\"uploadresponse\",\"picture\",3\r"); // POST the file to the server.
+  delay(4000);
+  return getHTTPContent("uploadresponse");
 
-void getBytes(String message) {
-  // send a command to the LTE module, print the output to terminal as a list of hex bytes.
-  message = message.substring(6); // cut off the first 5 characters of message (which will be "BYTES ")
-  USBSerial.println("Trying to send: "+message);
-  LTESerial.print(message+"\r");
-  byte inc;
-  char buffer[4];
-  long starttime = millis();
-  while (millis() - starttime < 2000) {
-    if (LTESerial.available()) {
-      inc = LTESerial.read();
-      sprintf(buffer, "%02X, ", inc);
-      USBSerial.print(buffer);
-    }
-  }
-  USBSerial.println();
 }
 
 void send(String message) {
@@ -175,14 +160,11 @@ String readFile(String filename) {
   LTESerial.print("AT+URDFILE=\""+filename+"\"\r");
   delay(20);
   char buf[2000];
-  
-  LTESerial.readBytes(buf, 2000);
-  // while (LTESerial.available()) {
-  //   output += LTESerial.readString();
-  // }
-  String output = String(buf);
+  int bytesplaced = LTESerial.readBytes(buf, 2000);
+  buf[bytesplaced] = '\0'; // terminate the string with a null  
+  String output = String(buf); // convert the string into a String
   for (int i = 0; i < 5; i++) {
-    output = output.substring(output.indexOf("\"")+1);
+    output = output.substring(output.indexOf("\"")+1); // keep cutting down the String every time a quotation mark is encountered, 5 times
   }
   output = output.substring(0, output.length()-7); // cuts off the last quotation mark and the OK
   return output;
@@ -212,9 +194,12 @@ void spotUpdate(byte input) {
   LTESerial.print("\",2\r");
   LTESerial.flush();
   delay(4000);
+  while (LTESerial.available()) {
+    LTESerial.read(); // empty the incoming buffer.
+  }
   String newstate = getHTTPContent(readFile("updateresponse"));
   USBSerial.println("Got newstate: "+newstate);
-  // LTESerial.print("AT+UDELFILE=\"updateresponse\"\r");
+  
   // TODO: send newstate to display.
 } 
 
@@ -222,6 +207,48 @@ void carLeft() {
   // called by the local ultrasonic sensor when a car leaves the parking lot
   LTESerial.print("AT+UHTTPC=1,5,\"/DUE/carLeft\",\"carLeftResponse\",\"\",1\r"); // send a POST with no content.
   // response doesn't matter and is overwritten every time.
+}
+
+/////////////////////////////////////
+////////// Tests and debug //////////
+/////////////////////////////////////
+
+void readTest(String command) {
+  // tests the readFile() command.
+  command = command.substring(9); // cut off the first 9 characters of message (which will be "READTEST ")
+  USBSerial.println("Trying to read file \""+command+"\"");
+  String filecontents = readFile(command);
+  USBSerial.print("File read: ");
+  USBSerial.println(filecontents);
+  String HTTPcontents = getHTTPContent(filecontents);
+  USBSerial.print("HTTP content: ");
+  USBSerial.println(HTTPcontents);
+}
+
+void HTTPReadTest(String command) {
+  command = command.substring(9); // cut off the first 9 characters of message (which will be "HTTPREAD ")
+  String fileContents = readFile(command);
+  String HTTPContents = getHTTPContent(fileContents);
+  USBSerial.println("HTTPREAD got contents: "+HTTPContents);
+}
+
+void spotUpdateTest(String command) {
+  // tests the spotUpdate() command
+  // command should be called with an 8-bit binary number
+  command = command.substring(15); // cut off the first 15 characters of message (which will be "SPOTUPDATETEST ")
+  if (command.length() != 8) { // must be a full byte
+    USBSerial.println("Invalid input.");
+    return;
+  }
+
+  char **ptr; // necessary for strtol()
+  const char *commandChars = command.c_str();
+  long byteLong = strtol(commandChars, ptr, 2); 
+  byte functionInput = (byte) byteLong;
+  USBSerial.print("Sending ");
+  USBSerial.print(functionInput, BIN);
+  USBSerial.println(" to spotUpdate()");
+  spotUpdate(functionInput);
 }
 
 void resetSerial() { 
@@ -243,45 +270,20 @@ void flushall() { // possibly helpful
   CamSerial.flush();
 }
 
-///////////////////////////
-////////// Tests //////////
-///////////////////////////
-
-void readTest(String command) {
-  // tests the readFile() command.
-  command = command.substring(9); // cut off the first 9 characters of message (which will be "READTEST ")
-  USBSerial.println("Trying to read file \""+command+"\"");
-  String filecontents = readFile(command);
-  USBSerial.print("File read: ");
-  USBSerial.println(filecontents);
-  String HTTPcontents = getHTTPContent(filecontents);
-  USBSerial.print("HTTP content: ");
-  USBSerial.println(HTTPcontents);
-}
-
-void HTTPReadTest(String command) {
-  command = command.substring(9); // cut off the first 9 characters of message (which will be "HTTPREAD ")
-  String fileContents = readFile(command);
-  String HTTPContents = getHTTPContent(fileContents);
-  USBSerial.println("Got contents: "+HTTPContents);
-
-}
-
-void spotUpdateTest(String command) {
-  // tests the spotUpdate() command
-  // command should be called with an 8-bit binary number
-  command = command.substring(15); // cut off the first 15 characters of message (which will be "SPOTUPDATETEST ")
-  if (command.length() != 8) {
-    USBSerial.println("Invalid input.");
-    return;
+void getBytes(String message) {
+  // send a command to the LTE module, print the output to terminal as a list of hex bytes.
+  message = message.substring(6); // cut off the first 5 characters of message (which will be "BYTES ")
+  USBSerial.println("Trying to send: "+message);
+  LTESerial.print(message+"\r");
+  byte inc;
+  char buffer[4];
+  long starttime = millis();
+  while (millis() - starttime < 2000) {
+    if (LTESerial.available()) {
+      inc = LTESerial.read();
+      sprintf(buffer, "%02X, ", inc);
+      USBSerial.print(buffer);
+    }
   }
-
-  char **ptr; // necessary for strtol()
-  const char *commandChars = command.c_str();
-  long byteLong = strtol(commandChars, ptr, 2);
-  byte functionInput = (byte) byteLong;
-  USBSerial.print("Sending ");
-  USBSerial.print(functionInput, BIN);
-  USBSerial.println(" to spotUpdate()");
-  spotUpdate(functionInput);
+  USBSerial.println();
 }
