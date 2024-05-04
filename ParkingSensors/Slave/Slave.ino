@@ -1,58 +1,62 @@
-
+//Library setup
 #include <Arduino.h>
 #include <HardwareSerial.h>
-//LoRa
+
+//LoRa pin setup
 //GND -GND
 //3V3 - 3V3
 //Rx - Tx
 //Tx - Rx
 
-//Sensor
+//Sensor pin setup
 //Gnd - Gnd
 //Vcc - VIN
 //Trig - 5
 //Echo -18
 
 
-// LoRa konfiguration
+//LoRa configuration
 HardwareSerial loraSerial(1);
 #define RxPin 16
 #define TxPin 17
 #define BAUDRATE 9600
 #define SER_BUF_SIZE 1024
 
-//Definition af lydens hastighed
+//Sound speed definition
 #define SOUND_SPEED 0.034
 
 
-// Ultrasonic Sensor konfiguration
+// Ultrasonic Sensor configuration
 const int trigPin = 5;
 const int echoPin = 18;
 
-
+//State variables
 float detectionDistance = 10.0;
 int prevState = false;
 
 
-// LoRa kommunikations variable
+// LoRa communications variables
 String str;
 const int retransmitInterval = 10000;
 bool messageAcknowledged  = true;
 
+//Light-sleep variable
 int sleepTime = 2000;
 
+//Spot and statusupdate varibles and definitions
 int spotID = 0;
-byte applicationID = 0xef;
-int msgAvailable = (applicationID << 8) | (spotID << 1 | 0);
-int msgOccupied = (applicationID << 8) | (spotID << 1 | 1);
-int msgAck = msgOccupied;
+byte applicationID = 0xef;  //ApplicationID to distinguish between other applications
+int msgAvailable = (applicationID << 8) | (spotID << 1 | 0); //0 -> not occupied
+int msgOccupied = (applicationID << 8) | (spotID << 1 | 1);  //1 -> occupied
+int msgAck = msgOccupied; //ACK is occupied message
 int packetToSend;
 
 void setup() {
- //Sensor setup
+//Sensor setup
  pinMode(trigPin, OUTPUT);
  pinMode(echoPin, INPUT);
 
+  //Set baudrate
 Serial.begin(115200);
 Serial.println("hello");
 
@@ -67,9 +71,9 @@ Serial.println("hello");
   delay(100);
   runLoRaCommand("mac pause",false);
   runLoRaCommand("radio set mod lora"); 
-  runLoRaCommand("radio set freq 869400000");
-  runLoRaCommand("radio set pwr 14");
-  runLoRaCommand("radio set sf sf7");
+  runLoRaCommand("radio set freq 869400000"); //Frequency
+  runLoRaCommand("radio set pwr 14"); //Power
+  runLoRaCommand("radio set sf sf7"); //Spreadingfactor
   runLoRaCommand("radio set afcbw 41.7");
   runLoRaCommand("radio set rxbw 20.8");
   runLoRaCommand("radio set prlen 8");
@@ -82,6 +86,7 @@ Serial.println("hello");
   runLoRaCommand("radio rx 0");
   Serial.println("starting loop");
 
+   //Enabling wake up from light-sleep
   esp_sleep_enable_timer_wakeup(sleepTime*1000);
 }
 
@@ -91,6 +96,7 @@ void loop() {
   Serial.println(".");
   bool newState = isCarParked();
 
+ //Spot status assessments - Spotstatus updated sent if change in state
   if (newState != prevState) {
     Serial.println("State changed");
     prevState = newState;
@@ -98,6 +104,7 @@ void loop() {
     messageAcknowledged = false;
   }
 
+   //Retransmitting update if ACK isn't received
   if (!messageAcknowledged){
     Serial.println("Transmitting message");
     runLoRaCommand("radio rxstop");
@@ -106,6 +113,7 @@ void loop() {
     delay(1000);
   }
 
+ //ACK recieving logic -> receiving messages while listening and checking if correct ACK
   if(loraSerial.available()){
     Serial.print("Recevied Data:");
     String message = readLoRaMessage();
@@ -128,14 +136,16 @@ void loop() {
     }
   }
 
-  
+  //Makes sure all lora serial data in buffer is transmitted
   loraSerial.flush();
+ //Makes sure all serial data is transmitted
   Serial.flush();
+  //ESP put in light sleep
   esp_light_sleep_start();
 }
 
 
-//sensor funktion til måling af distance til objekt
+//Sensor function used to measure distance to object
 float measureDistance() {
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
@@ -153,7 +163,7 @@ bool isCarParked(){
 
 
 
-//Besked funktion
+//Message function
 void transmitMessage(int intmessage) {
   String message = String(intmessage,16);
   Serial.print("Sending message: ");
@@ -190,6 +200,7 @@ String readLoRaMessage(){
   return response;
 }
 
+//LoRa autobaud function
 void lora_autobaud() {
  String response = "";
  while (response.isEmpty()) {
