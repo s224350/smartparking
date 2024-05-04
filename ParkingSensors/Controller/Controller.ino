@@ -1,12 +1,14 @@
+//Library setup
 #include <Arduino.h>
 #include <HardwareSerial.h>
 
+//LoRa pin setup
 //GND -GND
 //3V3 - 3V3
 //Rx - Tx
 //Tx - Rx
 
-// LoRa konfiguration
+//LoRa configuration
 HardwareSerial loraSerial(1);
 #define RxPin 16
 #define TxPin 17
@@ -16,9 +18,11 @@ HardwareSerial loraSerial(1);
 String str;
 
 void setup() {
+  //Set baudrate
   Serial.begin(57600);
   pinMode(23,OUTPUT);
   pinMode(23,LOW);
+  
   //LoRa setup
   loraSerial.setRxBufferSize(SER_BUF_SIZE);
   loraSerial.begin(BAUDRATE, SERIAL_8N1, RxPin, TxPin);
@@ -30,9 +34,9 @@ void setup() {
   delay(100);
   runLoRaCommand("mac pause",false);
   runLoRaCommand("radio set mod lora"); 
-  runLoRaCommand("radio set freq 869400000");
-  runLoRaCommand("radio set pwr 14");
-  runLoRaCommand("radio set sf sf7");
+  runLoRaCommand("radio set freq 869400000");  //Frequency
+  runLoRaCommand("radio set pwr 14");  //Power
+  runLoRaCommand("radio set sf sf7");  //Spreadingfactor
   runLoRaCommand("radio set afcbw 41.7");
   runLoRaCommand("radio set rxbw 20.8");
   runLoRaCommand("radio set prlen 8");
@@ -50,14 +54,14 @@ void setup() {
 void loop() {
   Serial.println("looping");
   delay(1000);
- //tjekker efter besked og handler herefter
+  //Checks for message and acting accordingly
   if (loraSerial.available()) {
     processMessage(readLoRaMessage());
   }
 }
 
 
-//Proces når besked modtages her printes beskeden, status skiftes og en ack sendes tilbage
+//Process for message reception - Printing message, changing status and transmitting ACK
 boolean processMessage(String receivedMessage) {
     receivedMessage = receivedMessage.substring(10);
 
@@ -134,6 +138,7 @@ void sendAck(byte parkingSpotID) {
   Serial.println(readLoRaMessage());
 }
 
+//LoRa autobaud function
 void lora_autobaud() {
  String response = "";
  while (response.isEmpty()) {
