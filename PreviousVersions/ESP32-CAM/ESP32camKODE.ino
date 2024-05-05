@@ -36,7 +36,8 @@ void setup() {
   config.pixel_format = PIXFORMAT_JPEG;
 
     config.frame_size = FRAMESIZE_VGA;
-    //FRAMESIZE_UXGA (1600 x 1200)
+  //formats
+  //FRAMESIZE_UXGA (1600 x 1200)
   //FRAMESIZE_QVGA (320 x 240)
   //FRAMESIZE_CIF (352 x 288)
   //FRAMESIZE_VGA (640 x 480)
@@ -49,8 +50,8 @@ void setup() {
     config.jpeg_quality = 40; //63 lowest quality and 10 is the lowest
     config.fb_count = 2;
     
-       
-      ledcSetup(flashLED_Channel, 5000, 8);
+      //initialiser flash LED
+      ledcSetup(flashLED_Channel, 5000, 8); 
       ledcAttachPin(4, flashLED_Channel);
 
   // Initialize the camera
@@ -67,15 +68,13 @@ void loop() {
   if(Serial.available()){
     byte buffer =Serial.read();
     if(buffer == 98){
-          sensorValue = analogRead(photoinput_pin);
-          //Serial.print("sensorvalue is: ");
-          //Serial.println(sensorValue);
-          if (sensorValue > 3000){
+          sensorValue = analogRead(photoinput_pin); //read analog photoresistor data
+
+          if (sensorValue > 3000){ //flashLED activation threshold
             sensorValue = 3000;
           }
-          //Serial.print("sensorValue after treshhold: ");
-          //Serial.println(sensorValue);
-          sensorValue = map(sensorValue,0,3000 ,255,0);
+
+          sensorValue = map(sensorValue,0,3000 ,255,0); //mapping from 0-3000 to 255-0 (meaning values are also reversed)
         captureAndProcessImage(sensorValue); 
     }
 
@@ -86,11 +85,11 @@ void loop() {
 void captureAndProcessImage(int LED_strength) { //denne funktion tager et billede og deallokere fra frame bufferen
   camera_fb_t *fb = NULL;
 
-  ledcWrite(flashLED_Channel, LED_strength);
+  ledcWrite(flashLED_Channel, LED_strength); //turn on flashLED
   delay(150);
-  fb = esp_camera_fb_get();
+  fb = esp_camera_fb_get(); //take picture
   
-  ledcWrite(flashLED_Channel, 0);
+  ledcWrite(flashLED_Channel, 0); //turn off flashLED
   
   if (!fb) {
     Serial.println("Camera capture failed");
@@ -101,38 +100,26 @@ void captureAndProcessImage(int LED_strength) { //denne funktion tager et billed
   uint8_t *imageBuffer = fb->buf;
   size_t imageLen = fb->len;
   long image_size = (long) imageLen;
+  //get image length into correct byte format
   byte imageSizeBytes[4];
   imageSizeBytes[0] = image_size & 0xff;
   imageSizeBytes[1] = image_size >> 8 & 0xff;
   imageSizeBytes[2] = image_size >> 16 & 0xff;
   imageSizeBytes[3] = image_size >> 24 & 0xff;
   Serial.write(imageSizeBytes,4);
-  // Print some image details
-  //Serial.printf("Captured %dx%d image\n", fb->width, fb->height);
-  //Serial.println(length(fb->buf));
-  //Serial.println(fb);
-// Convert fb_len to a String
-//String fb_len_str = String(image_size);
 
-// Send each character of the string over UART
-//for (int i = 0; i < fb_len_str.length(); i++) {
-//    Serial.write(fb_len_str.charAt(i));
-//}
-  //Serial.print("start");
 
-  while(Serial.read() != 99){
+  while(Serial.read() != 99){ //wait for signal to send image data
     delay(1);
   }
-  for (size_t i = 0; i < imageLen; i++) {
+  for (size_t i = 0; i < imageLen; i++) { //send image data
 
   Serial.write(imageBuffer[i]);
-  //Serial.print((int) imageBuffer[i],DEC);
-  //Serial.print(",");
 
   }
   
   
-  esp_camera_fb_return(fb); //deallocation af framebuffer
+  esp_camera_fb_return(fb); //deallocation of framebuffer
 }
 
 
