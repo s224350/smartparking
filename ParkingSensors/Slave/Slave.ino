@@ -71,7 +71,7 @@ Serial.println("hello");
   delay(100);
   runLoRaCommand("mac pause",false);
   runLoRaCommand("radio set mod lora"); 
-  runLoRaCommand("radio set freq 869400000"); //Frequency
+  runLoRaCommand("radio set freq 868000000"); //Frequency
   runLoRaCommand("radio set pwr 14"); //Power
   runLoRaCommand("radio set sf sf7"); //Spreadingfactor
   runLoRaCommand("radio set afcbw 41.7");
