@@ -53,32 +53,34 @@ U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0,13);
 void setup() {
   servo.attach(servoPin); // Attach the servo motor to the specified pin
   servo.write(angle); // Initialize servo to the closed position
-  //display setup:
-  u8g2.begin();
+  
+  u8g2.begin(); //display setup
+
   // ultrasound setup:
   pinMode(trigPinIn, OUTPUT);
   pinMode(echoPinIn, INPUT);
   pinMode(trigPinOut, OUTPUT);
   pinMode(echoPinOut, INPUT);
+
+  //Serial setup
   USBSerial.begin(115200);
   CamSerial.begin(115200);
   LTESerial.begin(115200);
 
-
   //initialising lora antenna
-  //loraSerial.setRxBufferSize(SER_BUF_SIZE);
-  //loraSerial.begin(BAUDRATE, SERIAL_8N1, RxPin, TxPin);
   loraSerial.begin(57600); //due
   loraSerial.setTimeout(1000);
 
-
-  //lora setup
+  //Reset LoRa module
   pinMode(3,OUTPUT);
   pinMode(3,HIGH);
   delay(200);
   pinMode(3,LOW);
 
+  // Run autobaud detection sequence
   lora_autobaud();
+
+  // Initialize LoRa module and set up radio parameters
   USBSerial.println("Initing LoRa");
   runLoRaCommand("sys get ver",false);
   delay(100);
@@ -93,26 +95,20 @@ void setup() {
   runLoRaCommand("radio set crc on");
   runLoRaCommand("radio set iqi off");
   runLoRaCommand("radio set cr 4/5");
-  runLoRaCommand("radio set wdt 60000");  //disable for continuous reception
+  runLoRaCommand("radio set wdt 60000");
   runLoRaCommand("radio set sync 12");
   runLoRaCommand("radio set bw 250");
   runLoRaCommand("radio rx 0");
+
+  // Setup LTE HTTP profile
   setupHTTP();
   
   USBSerial.println("starting loop");
-
-
-
 }
 
 void loop() {
-  if (USBSerial.available()){
-    USBSerial.println("Trying to call carleft()");
-      carLeft();
-    USBSerial.println("Done calling carleft()");
-  }
-  delay(200);
-  USBSerial.println("looping");
+
+  delay(100);
   // Checking for incoming car:
   if (checkIncomingCar()){ //check if a car is coming in
     USBSerial.println("Car has pulled up");
@@ -139,10 +135,12 @@ void loop() {
       USBSerial.println("Message is valid");
       String data = loraMessage.substring(11); //gets the last 2 chars of the string EFxx msg
 
-
+      // Convert data to charArray
       char messageCharArray[data.length()+1];
       data.toCharArray(messageCharArray, data.length()+1);
+      // Convert data to Long
       int messageLong = strtol(messageCharArray, NULL, 16);
+      // Convert data to byte
       byte messageToSend = messageLong & 0xff;
 
       USBSerial.print("Sending Spot update:");
@@ -155,7 +153,7 @@ void loop() {
     }
   }
   //checking for outgoing cars
-  delay(200);
+  delay(100);
   if (checkOutgoingCar()){
     USBSerial.println("Car has left parking lot");
     carLeft();
@@ -164,7 +162,7 @@ void loop() {
   }
 }
 
-//LTE funktioner-----------------------------------------------------------------------------------------------------
+//LTE functions-----------------------------------------------------------------------------------------------------
 void sendLTE(String message){
   USBSerial.print("sent '");
   USBSerial.print(message);
@@ -205,7 +203,6 @@ void setupRadio2() {
   send("AT+UPING=\"8.8.8.8\"\r"); //try to ping Google
 }
 
-
 void setupHTTP() {
   send("AT+UHTTP=1,0,\"20.52.253.18\"\r"); // define HTTP profile 1 to send to 20.52.253.18
   delay(100);
@@ -218,8 +215,8 @@ void setupHTTP() {
   send("AT+UHTTP=1,6,1,0\r"); // set HTTP profile 1 to use TLS with security config 0
 }
 
+// tells the ESP Cam to take a picture and transmit it over UART, to be saved on the LTE module memory
 void requestPicture() {
-  // tells the ESP Cam to take a picture and transmit it over UART, to be saved on the LTE module memory
   CamSerial.write(98); // one pre-agreed byte that means "take picture and send it"
   USBSerial.println("Waiting for CamSerial...");
   while (CamSerial.available() == 0) {} // wait for a response
@@ -258,14 +255,14 @@ void requestPicture() {
   }
 }
 
+// called by one ultrasonic sensor when a car approaches the gate
 bool getPicAndUpload() {
-  // called by one ultrasonic sensor when a car approaches the gate
   send("AT+UDELFILE=\"picture\"\r"); // delete the existing picture
   requestPicture();
   LTESerial.print("AT+UHTTPC=1,4,\"/DUE/upload\",\"uploadresponse\",\"picture\",3\r"); // POST the file to the server.
   delay(4000);
+  // Check if backend has returned "1", which means the license plate was accepted, and car is allowed to enter
   return getHTTPContent("uploadresponse").equals("1");
-
 }
 
 void send(String message) {
@@ -332,105 +329,10 @@ void spotUpdate(byte input) {
 
 void carLeft() {
   // called by the local ultrasonic sensor when a car leaves the parking lot
-
   String messageToSendA = "AT+UHTTPC=1,5,\"/DUE/carLeft\",\"carLeftResponse\",\"\",1\r";
-
-  USBSerial.println("Sending stuff");
-  //USBSerial.println("Sending first part");
-  //LTESerial.print("AT+UHTTPC=1,5,\""); // send a POST with no content.
-  //USBSerial.println("Sending sec part");
-  //LTESerial.print("/DUE/carLeft\","); // send a POST with no content.
-  //USBSerial.println("Sending third part");
-  //LTESerial.print("\"carLeftResponse\","); // send a POST with no content.
-  //USBSerial.println("Sending forth part");
-  //LTESerial.print("\"\",1"); // send a POST with no content.
-  //USBSerial.println("Sending r part");
-  //TESerial.print("\r"); // send a POST with no content.
-  LTESerial.print(messageToSendA); // send a POST with no content.
-  USBSerial.println("Done sending stuff");
+  LTESerial.print("AT+UHTTPC=1,5,\"/DUE/carLeft\",\"carLeftResponse\",\"\",1\r"); // send a POST with no content.
   // response doesn't matter and is overwritten every time.
 }
-
-/////////////////////////////////////
-////////// Tests and debug //////////
-/////////////////////////////////////
-
-void readTest(String command) {
-  // tests the readFile() command.
-  command = command.substring(9); // cut off the first 9 characters of message (which will be "READTEST ")
-  USBSerial.println("Trying to read file \""+command+"\"");
-  String filecontents = readFile(command);
-  USBSerial.print("File read: ");
-  USBSerial.println(filecontents);
-  String HTTPcontents = getHTTPContent(filecontents);
-  USBSerial.print("HTTP content: ");
-  USBSerial.println(HTTPcontents);
-}
-
-void HTTPReadTest(String command) {
-  command = command.substring(9); // cut off the first 9 characters of message (which will be "HTTPREAD ")
-  String fileContents = readFile(command);
-  String HTTPContents = getHTTPContent(fileContents);
-  USBSerial.println("HTTPREAD got contents: "+HTTPContents);
-}
-
-void spotUpdateTest(String command) {
-  // tests the spotUpdate() command
-  // command should be called with an 8-bit binary number
-  command = command.substring(15); // cut off the first 15 characters of message (which will be "SPOTUPDATETEST ")
-  if (command.length() != 8) { // must be a full byte
-    USBSerial.println("Invalid input.");
-    return;
-  }
-
-  char **ptr; // necessary for strtol()
-  const char *commandChars = command.c_str();
-  long byteLong = strtol(commandChars, ptr, 2); 
-  byte functionInput = (byte) byteLong;
-  USBSerial.print("Sending ");
-  USBSerial.print(functionInput, BIN);
-  USBSerial.println(" to spotUpdate()");
-  spotUpdate(functionInput);
-}
-
-void resetSerial() { 
-  // possibly helpful
-  USBSerial.println("Attempting to reset Serials...");
-  LTESerial.end();
-  USBSerial.end();
-  delay(500);
-  LTESerial.begin(LTEbaudrate);
-  USBSerial.begin(115200);
-  delay(500);
-  USBSerial.println("Serials rebooted.");
-}
-
-void flushall() { // possibly helpful
-  USBSerial.println("Flushing all Serials");
-  LTESerial.flush();
-  USBSerial.flush();
-  CamSerial.flush();
-}
-
-void getBytes(String message) {
-  // send a command to the LTE module, print the output to terminal as a list of hex bytes.
-  message = message.substring(6); // cut off the first 5 characters of message (which will be "BYTES ")
-  USBSerial.println("Trying to send: "+message);
-  LTESerial.print(message+"\r");
-  byte inc;
-  char buffer[4];
-  long starttime = millis();
-  while (millis() - starttime < 2000) {
-    if (LTESerial.available()) {
-      inc = LTESerial.read();
-      sprintf(buffer, "%02X, ", inc);
-      USBSerial.print(buffer);
-    }
-  }
-  USBSerial.println();
-}
-
-
 
 //Display funktioner-----------------------------------------------------------------------------------------------------
 void drawParkingSpots(int occSpots[]) {
@@ -510,7 +412,6 @@ bool checkIncomingCar(){
   USBSerial.print("checkIncomingCar distance: ");
   USBSerial.println(measureDistanceIn());
   return measureDistanceIn() < detectionDistance;
-
 }
 
 float measureDistanceOut() {
@@ -542,30 +443,11 @@ void openGate() {
   servo.write(closeAngle); // Set servo back to closed position
   USBSerial.println("Servo returned to closed position.");
 }
-//Camera--------------------------------------------------------------
-void get_Picture(){
-  USBSerial.println("*Snap* - Yep. This one's going in my cringe compilation");
-}
-bool send_Picture(){
-  USBSerial.println("Cringe picture was sent to my compilation");
-  return true;
-}
-
-void getAvailableSpots(int (& spotArray)[4]){
-  USBSerial.print("assigned spots: ");
-  for (int i = 0; i<4;i++){
-    spotArray[i] = random(2);
-    USBSerial.print(spotArray[i]);
-    USBSerial.print(", ");
-  }
-  USBSerial.println("");
-
-}
-
-//lora--------------------------------------------------------------
 
 
-//Proces når besked modtages her printes beskeden, status skiftes og en ack sendes tilbage
+//LoRa--------------------------------------------------------------
+
+// Checks if message is valid, and if it is, sends an ack back to the sender and returns true
 boolean processMessage(String receivedMessage) {
     receivedMessage = receivedMessage.substring(10);
 
@@ -642,7 +524,7 @@ void sendAck(byte parkingSpotID) {
   USBSerial.println(readLoRaMessage());
 }
 
-
+// LoRa autobaud detection sequence
 void lora_autobaud() {
  String response = "";
  while (response.equals("")) {
@@ -655,5 +537,3 @@ void lora_autobaud() {
    response = loraSerial.readStringUntil('\n');
  }
 }
-
-//--------------------------------------------------------------
