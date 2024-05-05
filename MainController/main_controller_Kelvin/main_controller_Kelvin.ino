@@ -84,7 +84,7 @@ void setup() {
   delay(100);
   runLoRaCommand("mac pause",false);
   runLoRaCommand("radio set mod lora"); 
-  runLoRaCommand("radio set freq 869400000");
+  runLoRaCommand("radio set freq 868000000");
   runLoRaCommand("radio set pwr 14");
   runLoRaCommand("radio set sf sf7");
   runLoRaCommand("radio set afcbw 41.7");
