@@ -9,6 +9,7 @@ import json
 import logging
 from logging.handlers import RotatingFileHandler
 
+# Create mysql connector
 mydb = mysql.connector.connect(
   host="localhost",
   user="phpuser",
@@ -20,13 +21,13 @@ app = Flask(__name__)
 app.config['SOCK_SERVER_OPTIONS'] = {'ping_interval': 25}
 sock = Sock(app)
 
+# List of all connected sockets
 sockets = {}
 
+# List of cars inside parking lot, but not parked
 nonParkedCars = []
 
-
-
-
+# Get parking lot state from database, and return as list of dictionaries with id, activePermit, name, occupied boolean
 def getParkingLotState():
     SQLquery = "SELECT parkingSpots.id,parkingSpots.activePermit,parkingPermits.name FROM parkingSpots LEFT JOIN parkingPermits ON parkingPermits.id=parkingSpots.activePermit"
     with mydb.cursor() as cursor:
@@ -39,6 +40,7 @@ def getParkingLotState():
         return spots
     return []
 
+# Convert the data from the getParkingLotState function to a binary string based on the occupied status
 def convertParkingLotStateToBinary(parkingLotState):
     outputString = ""
     for spot in parkingLotState:
@@ -48,8 +50,7 @@ def convertParkingLotStateToBinary(parkingLotState):
             outputString += "0"
     return outputString
     
-
-
+# Get corresponding permitID from license plate from the database
 def getPermitIDbyPlate(licensePlate):
     SQLquery = "SELECT id FROM parkingPermits WHERE licensePlate='"+licensePlate+"'"
     with mydb.cursor() as cursor:
@@ -59,6 +60,7 @@ def getPermitIDbyPlate(licensePlate):
             return result[0][0]
     return 0
 
+# Get the permit id currently active for a specific parking spot
 def getPermitIDbySpot(spotID):
     SQLquery = "SELECT activePermit FROM parkingSpots WHERE id="+str(spotID)
     with mydb.cursor() as cursor:
@@ -80,24 +82,24 @@ def registerDeparkedCar(spotID):
         cursor.execute(SQLquery)
         mydb.commit()
 
+# Tell all connected clients the new parking lot state
 def sendUpdateToAllSockets(data):
     print("Sending update")
     for socket in sockets:
         sockets[socket].send(json.dumps(data))
 
-
-
-
+# Route for websocket connection
 @sock.route('/WS/socket')
 def wssocket(ws):
-    print("Someone connected to the echo route")
+    # Store the socket in the list of connected sockets
     connectionId = str(uuid.uuid4())
     sockets[connectionId] = ws
     print("Connection ID: "+connectionId)
 
-    print("Sending initial data")
+    # Send the current parking lot state to the client
     ws.send(json.dumps(getParkingLotState()))
     
+    # Keep the connection alive by responding to pings
     while True:
         try:
             data = ws.receive()
@@ -107,23 +109,27 @@ def wssocket(ws):
             sockets.pop(connectionId)
             print("Connection closed: "+connectionId)
 
-
-
-
+# Route when DUE sends an image of a license plate
 @app.route("/DUE/upload", methods=["POST"])
 def process_image():
     print("#upload#")
     print("Received image of license plate")
+
+    # Save the received image
     file = request.files['file_post']
     id = str(uuid.uuid4())+".jpg"
     file.save(id)
     print("Image saved as "+id)
 
+    # Read the license plate from the image
     licensePlate = licensePlateOCR.readLicensePlate(id)
+
+    # validate the license plate
     if len(licensePlate) != 5:
         print("Invalid license plate")
         return "0"
 
+    # Get the permitID of the car with the license plate
     permitID = getPermitIDbyPlate(licensePlate)
     if permitID == 0:
         print("License plate " + licensePlate + " is not registered in permit database")
@@ -133,7 +139,7 @@ def process_image():
     nonParkedCars.append(permitID)
     return "1"
 
-
+# Route when DUE sends a carLeft request, which means that a car has left the parking lot 
 @app.route('/DUE/carLeft', methods=["POST"])
 def carLeft():
     print("#carLeft#")
@@ -143,21 +149,20 @@ def carLeft():
     print("Car with permitID:"+str(nonParkedCars[0])+" left the parking lot")
     nonParkedCars.pop(0)
 
-
+# Route when DUE sends a update request, which means that a car has parked or left a parking spot
+# The first 7 bits of the received byte are the spotID, and the last bit is the occupied status
 @app.route('/DUE/update', methods=["POST"])
 def update():
-
-    
-
-
     receivedData = request.data
+
+    # Exit if the received data is not 1 byte
     if len(receivedData) != 1:
         return "Invalid data"
     
+    # Parse byte
     receivedByte = receivedData[0]
     spotID = ((receivedByte >> 1) & 0b1111111) + 1
     occupied = receivedByte & 0b1
-
 
     if occupied:
         if len(nonParkedCars) == 0:
@@ -174,26 +179,14 @@ def update():
         nonParkedCars.append(permitID)
 
     currentSpotStatus = getParkingLotState()
-
     print("#update#")
     print("Car has " + ("parked" if str(occupied) else "left") + " spot "+str(spotID))
-    print(currentSpotStatus)
-    print(nonParkedCars)
 
+    # Update all connected clients with the new parking lot state
     sendUpdateToAllSockets(currentSpotStatus)
 
+    # Return the new parking lot state as binary string
     return convertParkingLotStateToBinary(currentSpotStatus)
-
-
-
-@app.route('/DUE/spotUpdate', methods=["POST"])
-def helloPOST():
-    print(request.headers)
-    print(request.get_data())
-    print(request.data)
-    return 'success'
-
-
 
 if __name__ == "__main__":
     handler = RotatingFileHandler('app.log', maxBytes=100000, backupCount=3)
