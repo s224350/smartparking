@@ -14,7 +14,6 @@
 //Trig - 5
 //Echo -18
 
-
 //LoRa configuration
 HardwareSerial loraSerial(1);
 #define RxPin 16
@@ -53,12 +52,12 @@ int packetToSend;
 
 void setup() {
 //Sensor setup
- pinMode(trigPin, OUTPUT);
- pinMode(echoPin, INPUT);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
 
   //Set baudrate
-Serial.begin(115200);
-Serial.println("hello");
+  Serial.begin(115200);
+  Serial.println("hello");
 
   //LoRa setup
   loraSerial.setRxBufferSize(SER_BUF_SIZE);
@@ -66,6 +65,7 @@ Serial.println("hello");
   loraSerial.setTimeout(1000);
   lora_autobaud();
 
+  //Setup LoRa module and radio parameters
   Serial.println("Initing LoRa");
   runLoRaCommand("sys get ver",false);
   delay(100);
@@ -96,7 +96,7 @@ void loop() {
   Serial.println(".");
   bool newState = isCarParked();
 
- //Spot status assessments - Spotstatus updated sent if change in state
+  //Spot status assessments - Spotstatus updated sent if change in state
   if (newState != prevState) {
     Serial.println("State changed");
     prevState = newState;
@@ -118,17 +118,16 @@ void loop() {
     Serial.print("Recevied Data:");
     String message = readLoRaMessage();
     Serial.print(message);
+    //Validate message length
     if (message.length() == 14){
+      //Remove "radio_rx  " from message
       message = message.substring(10);
 
+      //Convert message to int
       char buffer[message.length()+1];
       message.toCharArray(buffer, message.length()+1);
       int messageValue = strtol(buffer, NULL, 16);
 
-      Serial.print("msgAck:");
-      Serial.println(msgAck,DEC);
-      Serial.print("Message:");
-      Serial.println(messageValue,DEC);
       if(msgAck == messageValue){
         Serial.println("ACK confirmed");
         messageAcknowledged = true;
@@ -161,9 +160,7 @@ bool isCarParked(){
   return measureDistance() < detectionDistance;
 }
 
-
-
-//Message function
+//Function to transmit LoRa message by integer
 void transmitMessage(int intmessage) {
   String message = String(intmessage,16);
   Serial.print("Sending message: ");
