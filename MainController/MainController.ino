@@ -1,54 +1,174 @@
-#define LTEbaudrate 115200 // can autobaud 9600, 19200, 38400, 57600, 115200, 230400, 460800, and 921600
-                           // but it seems Arduino Due can't do more than 115200
-#define USBSerial Serial
-#define LTESerial Serial3
-#define CamSerial Serial2
+#include <Arduino.h>
+#include <U8g2lib.h>
+#include <Wire.h>
+#include <Servo.h>
+#include <HardwareSerial.h>
+//#include <SoftwareSerial.h> //virker ikke på due
+//#define RX 13
+//#define TX 7
 
+
+//lora setup
+//HardwareSerial loraSerial(1);
+#define LTEbaudrate 115200
+#define USBSerial Serial
+#define loraSerial Serial1 //til due board
+#define CamSerial Serial2
+#define LTESerial Serial3
+//#define loraSerial Serial1 //til uno board
+//#define RxPin 19//19
+//#define TxPin 18 //18
+#define BAUDRATE 9600
+#define SER_BUF_SIZE 1024
+String str;
+
+//servo setup
+#define servoPin 2 // Pin for the servo motor
+#define closeAngle 180 // Servo angle for "closed" position
+#define openAngle 90 
+Servo servo; // Instance of the Servo class
+int angle = closeAngle; // Current angle of the servo motor
+int gateWait = 3000; //how long the gate is opened for
+
+
+int spotID = 1; //1 is set as a placeholder
+
+// Ultrasonic Sensor konfiguration
+const int trigPinIn = 51; //51
+const int echoPinIn = 53; //53
+
+const int trigPinOut = 50; //50
+const int echoPinOut = 52; //52
+
+float detectionDistance = 5.0;
+//Definition af lydens hastighed
+#define SOUND_SPEED 0.034
 int state[4] = {0,0,0,0};
 
+//display setup
+unsigned long blinkStartTime = 0;
+U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0,13);
+
+
 void setup() {
-  USBSerial.begin(115200); // Serial0 communicating with PC over USB
-  LTESerial.begin(LTEbaudrate); // Serial1 communicating with LTE module over UART
-  CamSerial.begin(115200); // Serial2 communicating with ESP camera over UART
-  delay(500);
-  USBSerial.println("Hello world!");
+  servo.attach(servoPin); // Attach the servo motor to the specified pin
+  servo.write(angle); // Initialize servo to the closed position
+  //display setup:
+  u8g2.begin();
+  // ultrasound setup:
+  pinMode(trigPinIn, OUTPUT);
+  pinMode(echoPinIn, INPUT);
+  pinMode(trigPinOut, OUTPUT);
+  pinMode(echoPinOut, INPUT);
+  USBSerial.begin(115200);
+  CamSerial.begin(115200);
+  LTESerial.begin(115200);
+
+
+  //initialising lora antenna
+  //loraSerial.setRxBufferSize(SER_BUF_SIZE);
+  //loraSerial.begin(BAUDRATE, SERIAL_8N1, RxPin, TxPin);
+  loraSerial.begin(57600); //due
+  loraSerial.setTimeout(1000);
+
+
+  //lora setup
+  pinMode(3,OUTPUT);
+  pinMode(3,HIGH);
+  delay(200);
+  pinMode(3,LOW);
+
+  lora_autobaud();
+  USBSerial.println("Initing LoRa");
+  runLoRaCommand("sys get ver",false);
+  delay(100);
+  runLoRaCommand("mac pause",false);
+  runLoRaCommand("radio set mod lora"); 
+  runLoRaCommand("radio set freq 868000000");
+  runLoRaCommand("radio set pwr 14");
+  runLoRaCommand("radio set sf sf7");
+  runLoRaCommand("radio set afcbw 41.7");
+  runLoRaCommand("radio set rxbw 20.8");
+  runLoRaCommand("radio set prlen 8");
+  runLoRaCommand("radio set crc on");
+  runLoRaCommand("radio set iqi off");
+  runLoRaCommand("radio set cr 4/5");
+  runLoRaCommand("radio set wdt 60000");  //disable for continuous reception
+  runLoRaCommand("radio set sync 12");
+  runLoRaCommand("radio set bw 250");
+  runLoRaCommand("radio rx 0");
+  setupHTTP();
+  
+  USBSerial.println("starting loop");
+
+
+
 }
 
 void loop() {
-  if (LTESerial.available()) { // read anything from the LTE module if it has anything to say
-    String inc = LTESerial.readStringUntil('\r');
-    USBSerial.print(inc);
+  if (USBSerial.available()){
+    USBSerial.println("Trying to call carleft()");
+      carLeft();
+    USBSerial.println("Done calling carleft()");
   }
-
-  if (USBSerial.available()) { // allow the user at the serial monitor to enter commands
-    String out = Serial.readStringUntil('\r');
-    // some debug commands to be activated through the serial monitor:
-    if (out.equals("SETUPRADIO1")) {
-      setupRadio1(); // Network settings on the LTE module
-    } else if (out.equals("SETUPRADIO2")) {
-      setupRadio2(); // LTE settings on the LTE module
-    } else if (out.equals("SETUPHTTP")) {
-      setupHTTP(); // HTTP settings to interface with the backend server
-    } else if (out.equals("FLUSHALL")) {
-      flushall(); // flush all the Serials. Not used for anything, I just thought it might help (it didn't)
-    } else if (out.equals("RESETSERIAL")) {
-      resetSerial(); // end USBSerial and LTESerial, then begin them again. Also didn't help.
-    } else if (out.equals("GETPIC")) {
-      requestPicture(); // make the camera take a picture and transfer it to the LTE module
-    } else if (out.equals("CARLEFTTEST")) {
-      carLeft(); // test sending the carLeft message to the server
-    } else if (out.startsWith("SPOTUPDATETEST ")) {
-      spotUpdateTest(out); // test sending a spotupdate byte to the server
-    } else if (out.startsWith("BYTES ")) {
-      getBytes(out); // send a command to the LTE module, but get the answer printed as hex bytes instead of a String.
-    } else if (out.startsWith("READTEST ")) {
-      readTest(out); // test the readFile() function
-    } else if (out.startsWith("HTTPREAD ")) {
-      HTTPReadTest(out); // test the getHTTPContent() function
-    } else {
-      LTESerial.println(out); //otherwise send the command directly to the LTE module
+  delay(200);
+  USBSerial.println("looping");
+  // Checking for incoming car:
+  if (checkIncomingCar()){ //check if a car is coming in
+    USBSerial.println("Car has pulled up");
+    display_Welcome(); //display welcome on the display
+    USBSerial.println("Taking picture");
+    if (getPicAndUpload()){ //if license plate is accepted
+      USBSerial.println("License plate accepeted");
+      drawParkingSpots(state); 
+      USBSerial.println("Opening gate");     
+      openGate();
+    }
+    else{ //if license plate is not accepted
+      USBSerial.println("License plate rejected");
+      display_noAccess();
     }
   }
+
+  //Listening for lora updates:
+  if (loraSerial.available()){
+    USBSerial.println("Received lora message");
+    String loraMessage = readLoRaMessage();
+    
+    if (processMessage(loraMessage)){ //processMessage returns true if the message is valid and false if the message is invalid
+      USBSerial.println("Message is valid");
+      String data = loraMessage.substring(11); //gets the last 2 chars of the string EFxx msg
+
+
+      char messageCharArray[data.length()+1];
+      data.toCharArray(messageCharArray, data.length()+1);
+      int messageLong = strtol(messageCharArray, NULL, 16);
+      byte messageToSend = messageLong & 0xff;
+
+      USBSerial.print("Sending Spot update:");
+      USBSerial.println(messageToSend,HEX);
+
+      spotUpdate(messageToSend);
+    }
+    else{ //recieved invalid message from lora
+      USBSerial.println("recieved invalid message from lora");
+    }
+  }
+  //checking for outgoing cars
+  delay(200);
+  if (checkOutgoingCar()){
+    USBSerial.println("Car has left parking lot");
+    carLeft();
+    USBSerial.println("Opening gate");
+    openGate();
+  }
+}
+
+//LTE funktioner-----------------------------------------------------------------------------------------------------
+void sendLTE(String message){
+  USBSerial.print("sent '");
+  USBSerial.print(message);
+  USBSerial.println("' to LTE");
 }
 
 void setupRadio1() {
@@ -66,6 +186,8 @@ void setupRadio1() {
   send("AT+CGDCONT=1,\"IPV4\",\"telenor.iot\"\r"); // Define a PDP context with CID 1, connect to telenor
   delay(200);
 }
+
+
 void setupRadio2() {
   //LTE settings
   send("AT+CFUN=1\r"); // turn on the radio
@@ -82,6 +204,7 @@ void setupRadio2() {
   delay(2000);
   send("AT+UPING=\"8.8.8.8\"\r"); //try to ping Google
 }
+
 
 void setupHTTP() {
   send("AT+UHTTP=1,0,\"20.52.253.18\"\r"); // define HTTP profile 1 to send to 20.52.253.18
@@ -135,13 +258,13 @@ void requestPicture() {
   }
 }
 
-String getPicAndUpload() {
+bool getPicAndUpload() {
   // called by one ultrasonic sensor when a car approaches the gate
   send("AT+UDELFILE=\"picture\"\r"); // delete the existing picture
   requestPicture();
   LTESerial.print("AT+UHTTPC=1,4,\"/DUE/upload\",\"uploadresponse\",\"picture\",3\r"); // POST the file to the server.
   delay(4000);
-  return getHTTPContent("uploadresponse");
+  return getHTTPContent("uploadresponse").equals("1");
 
 }
 
@@ -209,7 +332,22 @@ void spotUpdate(byte input) {
 
 void carLeft() {
   // called by the local ultrasonic sensor when a car leaves the parking lot
-  LTESerial.print("AT+UHTTPC=1,5,\"/DUE/carLeft\",\"carLeftResponse\",\"\",1\r"); // send a POST with no content.
+
+  String messageToSendA = "AT+UHTTPC=1,5,\"/DUE/carLeft\",\"carLeftResponse\",\"\",1\r";
+
+  USBSerial.println("Sending stuff");
+  //USBSerial.println("Sending first part");
+  //LTESerial.print("AT+UHTTPC=1,5,\""); // send a POST with no content.
+  //USBSerial.println("Sending sec part");
+  //LTESerial.print("/DUE/carLeft\","); // send a POST with no content.
+  //USBSerial.println("Sending third part");
+  //LTESerial.print("\"carLeftResponse\","); // send a POST with no content.
+  //USBSerial.println("Sending forth part");
+  //LTESerial.print("\"\",1"); // send a POST with no content.
+  //USBSerial.println("Sending r part");
+  //TESerial.print("\r"); // send a POST with no content.
+  LTESerial.print(messageToSendA); // send a POST with no content.
+  USBSerial.println("Done sending stuff");
   // response doesn't matter and is overwritten every time.
 }
 
@@ -291,3 +429,231 @@ void getBytes(String message) {
   }
   USBSerial.println();
 }
+
+
+
+//Display funktioner-----------------------------------------------------------------------------------------------------
+void drawParkingSpots(int occSpots[]) {
+  unsigned long startTime = millis();
+  unsigned long endTime = startTime + 3000;  // Set end time for 3 seconds later
+
+  while (millis() < endTime) {
+    u8g2.clearBuffer();
+
+    int displayWidth = u8g2.getDisplayWidth();
+    int topRoad = u8g2.getDisplayHeight() / 2;
+    int buttRoad = u8g2.getDisplayHeight() - 3;
+    int spotWidth = displayWidth / 4;
+    int spotHeight = 25;
+    int textOffsetX = (spotWidth / 4) - 3;
+    int textOffsetY = (spotHeight / 2) - 5;
+
+    u8g2.drawLine(0, topRoad, displayWidth - 3, topRoad);
+    u8g2.drawLine(0, buttRoad, displayWidth - 3, buttRoad);
+
+    for (int x = 0; x < displayWidth; x += (3 + 5)) {
+      u8g2.drawLine(x, topRoad + ((buttRoad - topRoad) / 2), x + 3, topRoad + ((buttRoad - topRoad) / 2));
+    }
+
+    u8g2.setFont(u8g2_font_ncenB08_tr);
+
+    for (int i = 0; i < 4; i++) {
+      char spotLabel[3];
+      sprintf(spotLabel, "%d", i + 1);
+
+      int x = i * spotWidth + (spotWidth / 4);
+      u8g2.drawFrame(x, topRoad - spotHeight + 1, spotWidth - (2 * (spotWidth / 4)), spotHeight);
+      u8g2.drawStr(x + textOffsetX, topRoad - textOffsetY, spotLabel);
+
+      // Only blink the spot if the array element is 0
+      if (occSpots[i] == 0) {
+        if ((millis() - startTime) / 100 % 2 == 0) {  // Blink every 100 ms
+          u8g2.setDrawColor(0);
+          u8g2.drawBox(x, topRoad - spotHeight + 1, spotWidth - (2 * (spotWidth / 4)), spotHeight);
+          u8g2.setDrawColor(1);
+        }
+      }
+    }
+    u8g2.sendBuffer();
+  }
+}
+
+void display_Welcome() {
+  u8g2.clearBuffer();                  
+  u8g2.setFont(u8g2_font_ncenB14_tr);  
+  u8g2.drawStr(12, 32, "Welcome!");    
+  u8g2.sendBuffer();                   
+}
+
+void display_noAccess() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_ncenB14_tr);
+  u8g2.drawStr(12, 32, "No Access");
+  u8g2.sendBuffer();
+}
+
+//-----------------------------------------------------------------------------------------------------
+
+ // Ultralydsensor
+float measureDistanceIn() {
+  digitalWrite(trigPinIn, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPinIn, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPinIn, LOW);
+  long duration = pulseIn(echoPinIn, HIGH);
+  float distanceCm = duration * SOUND_SPEED / 2;
+  return distanceCm;
+}
+
+bool checkIncomingCar(){
+  USBSerial.print("checkIncomingCar distance: ");
+  USBSerial.println(measureDistanceIn());
+  return measureDistanceIn() < detectionDistance;
+
+}
+
+float measureDistanceOut() {
+  digitalWrite(trigPinOut, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPinOut, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPinOut, LOW);
+  long duration = pulseIn(echoPinOut, HIGH);
+  float distanceCm = duration * SOUND_SPEED / 2;
+  return distanceCm;
+}
+
+bool checkOutgoingCar(){
+  USBSerial.print("checkOutGoingCar distance: ");
+  float disout = measureDistanceOut();
+  USBSerial.println(disout);
+  return disout < detectionDistance;
+}
+
+
+//Gate--------------------------------------------------------------
+
+void openGate() {
+  // Example of using the servo in a loop (you can customize the behavior as needed)
+  servo.write(openAngle); // Set servo to open position
+  USBSerial.println("Servo set to open position.");
+  delay(gateWait); // Wait for 2 seconds
+  servo.write(closeAngle); // Set servo back to closed position
+  USBSerial.println("Servo returned to closed position.");
+}
+//Camera--------------------------------------------------------------
+void get_Picture(){
+  USBSerial.println("*Snap* - Yep. This one's going in my cringe compilation");
+}
+bool send_Picture(){
+  USBSerial.println("Cringe picture was sent to my compilation");
+  return true;
+}
+
+void getAvailableSpots(int (& spotArray)[4]){
+  USBSerial.print("assigned spots: ");
+  for (int i = 0; i<4;i++){
+    spotArray[i] = random(2);
+    USBSerial.print(spotArray[i]);
+    USBSerial.print(", ");
+  }
+  USBSerial.println("");
+
+}
+
+//lora--------------------------------------------------------------
+
+
+//Proces når besked modtages her printes beskeden, status skiftes og en ack sendes tilbage
+boolean processMessage(String receivedMessage) {
+    receivedMessage = receivedMessage.substring(10);
+
+    //Validate message length
+    if (receivedMessage.length() != 4){
+      return false;
+    }
+
+    //Convert message to char array
+    char messageCharArray[receivedMessage.length()+1];
+    receivedMessage.toCharArray(messageCharArray, receivedMessage.length()+1);
+
+    //Convert message to int(2 bytes)
+    int messageLong = strtol(messageCharArray, NULL, 16);
+
+    //Extract frame fields using bitwise operations
+    byte applicationID = (messageLong >> 8);
+    byte spotID = (messageLong >> 1) & 0x7f;
+    bool occupied = messageLong & 0x1; 
+
+    //Validate application ID
+    if (applicationID != 0xef){
+      return false;
+    }
+
+    USBSerial.println("Received message from parking sensor");
+    USBSerial.print("Application ID:");
+    USBSerial.println(applicationID, HEX);
+    USBSerial.print("Parking spot:");
+    USBSerial.println(spotID+1,DEC);
+    USBSerial.print("Occupied:");
+    USBSerial.println(occupied);
+    delay(50);
+    sendAck(spotID);
+    
+    runLoRaCommand("radio rx 0");
+    return true;
+}
+
+//Run a LoRa command, and print error if command fails and validateReponse is true
+void runLoRaCommand(String command, bool validateReponse){
+  loraSerial.println(command);
+  str = readLoRaMessage();
+  USBSerial.print("Command:");
+  USBSerial.print(command);
+  USBSerial.print("  Reponse:");
+  USBSerial.println(str);
+
+  if (validateReponse && str.equals("ok") == false){
+    USBSerial.print("ERROR during: ");
+    USBSerial.println(command);
+  }
+}
+
+//Set validateReponse to true if not defined
+void runLoRaCommand(String command){
+  runLoRaCommand(command,true);
+}
+
+//Read response from LoRa module, and discard \r\n 
+String readLoRaMessage(){
+  String response = loraSerial.readStringUntil('\r');
+  loraSerial.readStringUntil('\n');
+  return response;
+}
+
+//Send acknoledgement packet
+void sendAck(byte parkingSpotID) {
+  int ackMessage = ((0xef << 8) + 0x1) | (parkingSpotID << 1);
+  USBSerial.print("Sent ACK: ");
+  USBSerial.println(ackMessage);
+  String txCommand = "radio tx " + String(ackMessage,HEX);
+  runLoRaCommand(txCommand);
+  USBSerial.println(readLoRaMessage());
+}
+
+
+void lora_autobaud() {
+ String response = "";
+ while (response.equals("")) {
+   delay(1000);
+   USBSerial.println("autobaud");
+   loraSerial.write((byte)0x00);
+   loraSerial.write(0x55);
+   loraSerial.println();
+   loraSerial.println("sys get ver");
+   response = loraSerial.readStringUntil('\n');
+ }
+}
+
+//--------------------------------------------------------------
