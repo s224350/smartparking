@@ -5,4 +5,5 @@ This repository contains the following 4 directories
 - "Cloud VM", is the code for the backend
 - "MainController", is the arduino code for the arduino DUO being used as the main controller
 - "ParkingSpot", is the arduino code for the parking spot entities. The code includes a variable called "spotID", which determines which parking spot the parking spot entity resides on
+- "CameraESP", is the arduino code for the ESP32-CAM, which is connected to the main controller
 - "PreviousVersions", contains code which is not used in the finished project. This is mainly code which has later been merged, and is only for a specific component
